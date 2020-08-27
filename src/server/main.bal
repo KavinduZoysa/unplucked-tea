@@ -28,6 +28,21 @@ service quarantineMonitor on new http:Listener(9090) {
         }
         respondClient(caller, res);
     }
+
+    @http:ResourceConfig {
+        methods: ["GET"],
+        path: "/health-check"
+    }
+    resource function healthCheck(http:Caller caller, http:Request req) {
+        http:Response res = new;
+
+        json responseJson = {
+            "server": true
+        };
+        res.setJsonPayload(<@untainted>responseJson);
+
+        respondClient(caller, res);
+    }
 }
 
 function handleContent(mime:Entity bodyPart) {
