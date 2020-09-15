@@ -3,6 +3,7 @@ import ballerina/log;
 import ballerina/io;
 import ballerina/mime;
 
+int index = 0;
 @http:ServiceConfig {
     basePath: "/tea-monitor",
     cors: {
@@ -10,25 +11,6 @@ import ballerina/mime;
     }
 }
 service quarantineMonitor on new http:Listener(9090) {
-
-    @http:ResourceConfig {
-        methods: ["POST"],
-        path: "/send-photo"
-    }
-    resource function logIn(http:Caller caller, http:Request req) {
-        http:Response res = new;
-
-        var bodyParts = req.getBodyParts();
-        io:print(bodyParts);
-
-        if (bodyParts is mime:Entity[]) {
-            foreach var part in bodyParts {
-                handleContent(part);
-            }
-        }
-        respondClient(caller, res);
-    }
-
     @http:ResourceConfig {
         methods: ["GET"],
         path: "/health-check"
@@ -43,6 +25,90 @@ service quarantineMonitor on new http:Listener(9090) {
 
         respondClient(caller, res);
     }
+
+    @http:ResourceConfig {
+        methods: ["GET"],
+        path: "/populate-tables"
+    }
+    resource function populateTables(http:Caller caller, http:Request req) {
+        
+        http:Response res = new;
+        if (!populateTables()) {
+            res.statusCode = 500;
+            res.setPayload("Cannot create tables");
+        }
+
+        respondClient(caller, res);
+    }
+
+    @http:ResourceConfig {
+        methods: ["POST"],
+        path: "/login"
+    }
+    resource function logIn(http:Caller caller, http:Request req) {
+        http:Response res = new;
+
+        var payload = req.getJsonPayload();
+
+        if (payload is json) {            
+            res.setJsonPayload(<@untainted>getLoginInfo(<@untainted>payload));
+        } else {
+            res.statusCode = 500;
+            log:printError(ERROR_INVALID_FORMAT);
+        }
+
+        respondClient(caller, res);
+    }
+
+    @deprecated
+    @http:ResourceConfig {
+        methods: ["POST"],
+        path: "/send-photo"
+    }
+    resource function sendPhoto(http:Caller caller, http:Request req) {
+        http:Response res = new;
+
+        var bodyParts = req.getBodyParts();
+        io:println("bodyParts", bodyParts);
+
+        if (bodyParts is mime:Entity[]) {
+            foreach var part in bodyParts {
+                io:println("part", part.toString());
+                handleContent(part);
+            }
+        }
+        respondClient(caller, res);
+    }
+
+    @http:ResourceConfig {
+        methods: ["POST"],
+        path: "/send-photo-v1"        
+    }
+    resource function sendPhotov2(http:Caller caller, http:Request req) {
+        http:Response res = new;
+        string image = "image";
+
+        byte[]|error requestBinaryContent = req.getBinaryPayload();
+        if (requestBinaryContent is byte[]) {
+            // error? e = writeImage(image, <byte[]> requestBinaryContent);
+            // if e is error {
+            //     log:printError("Unable to write result to " + image, e);
+            //     res.statusCode = 500;
+            //     log:printError(ERROR_IN_WRITING);
+            // } else {
+            //     log:printInfo("New result written: " + image);
+            // }
+            if !(writeToImage(<byte[]> requestBinaryContent, "image")) {
+                res.statusCode = 500;
+                log:printError(ERROR_IN_WRITING);
+            }
+        } else {
+            res.statusCode = 500;
+            log:printError(ERROR_INVALID_FORMAT);
+        }
+
+        respondClient(caller, res);
+    }
 }
 
 function handleContent(mime:Entity bodyPart) {
@@ -52,7 +118,7 @@ function handleContent(mime:Entity bodyPart) {
         io:print(baseType);
         if (mime:IMAGE_PNG == baseType) {
             io:ReadableByteChannel srcCh = <io:ReadableByteChannel> bodyPart.getByteChannel();
-            string dstPath = "./files/ballerinaCopy.png";
+            string dstPath = "./files/img" + index.toString() + ".png";
 
             io:WritableByteChannel dstCh = <io:WritableByteChannel> io:openWritableFile(dstPath);
 
@@ -60,6 +126,7 @@ function handleContent(mime:Entity bodyPart) {
             if (result is error) {
                 log:printError("error occurred while performing copy ", result);
             } else {
+                index = index + 1;
                 io:println("File copy completed. The copied file is located at " +
                             dstPath);
             }
