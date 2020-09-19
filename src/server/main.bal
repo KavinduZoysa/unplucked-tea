@@ -86,22 +86,15 @@ service quarantineMonitor on new http:Listener(9090) {
     }
     resource function sendPhotov2(http:Caller caller, http:Request req) {
         http:Response res = new;
-        string image = "image";
+        string image = "image_" + index.toString();
 
         byte[]|error requestBinaryContent = req.getBinaryPayload();
         if (requestBinaryContent is byte[]) {
-            // error? e = writeImage(image, <byte[]> requestBinaryContent);
-            // if e is error {
-            //     log:printError("Unable to write result to " + image, e);
-            //     res.statusCode = 500;
-            //     log:printError(ERROR_IN_WRITING);
-            // } else {
-            //     log:printInfo("New result written: " + image);
-            // }
-            if !(writeToImage(<byte[]> requestBinaryContent, "image")) {
+            if !(writeToImage(<byte[]> requestBinaryContent, image)) {
                 res.statusCode = 500;
                 log:printError(ERROR_IN_WRITING);
             }
+            index = index + 1;
         } else {
             res.statusCode = 500;
             log:printError(ERROR_INVALID_FORMAT);
