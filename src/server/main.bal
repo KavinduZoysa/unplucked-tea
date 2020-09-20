@@ -1,9 +1,7 @@
 import ballerina/http;
 import ballerina/log;
 import ballerina/io;
-import ballerina/mime;
 
-int index = 0;
 @http:ServiceConfig {
     basePath: "/tea-monitor",
     cors: {
@@ -62,19 +60,18 @@ service quarantineMonitor on new http:Listener(9090) {
 
     @http:ResourceConfig {
         methods: ["POST"],
-        path: "/send-photo"        
+        path: "/send-photo/{imageName}/{extension}"        
     }
-    resource function sendPhoto(http:Caller caller, http:Request req) {
+    resource function sendPhoto(http:Caller caller, http:Request req, string imageName, string extension) {
         http:Response res = new;
-        string image = "image_" + index.toString();
+        string image = imageName + "." + extension;
 
         byte[]|error requestBinaryContent = req.getBinaryPayload();
         if (requestBinaryContent is byte[]) {
-            if !(writeToImage(<byte[]> requestBinaryContent, image)) {
+            if !(writeToImage(<byte[]> requestBinaryContent, <@untainted>image)) {
                 res.statusCode = 500;
                 log:printError(ERROR_IN_WRITING);
             }
-            index = index + 1;
         } else {
             res.statusCode = 500;
             log:printError(ERROR_INVALID_FORMAT);
