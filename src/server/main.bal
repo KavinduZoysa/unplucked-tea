@@ -60,15 +60,28 @@ service quarantineMonitor on new http:Listener(9090) {
 
     @http:ResourceConfig {
         methods: ["POST"],
-        path: "/send-photo/{imageName}/{extension}"        
+        path: "/send-photo/original/{imageName}/{extension}"        
     }
-    resource function sendPhoto(http:Caller caller, http:Request req, string imageName, string extension) {
+    resource function sendPhotoOriginal(http:Caller caller, http:Request req, string imageName, string extension) {
+        savePhoto(caller, req, "/var/www/html/original/", imageName + "." + extension);
+    }
+
+        @http:ResourceConfig {
+        methods: ["POST"],
+        path: "/send-photo/processed/{imageName}/{extension}"        
+    }
+    resource function sendPhotoProcessed(http:Caller caller, http:Request req, string imageName, string extension) {
+        savePhoto(caller, req, "/var/www/html/processed/", imageName + "." + extension);
+    }
+}
+
+function savePhoto(http:Caller caller, http:Request req, string path, string image) {
         http:Response res = new;
-        string image = imageName + "." + extension;
+        string imagePath = path + image;
 
         byte[]|error requestBinaryContent = req.getBinaryPayload();
         if (requestBinaryContent is byte[]) {
-            if !(writeToImage(<byte[]> requestBinaryContent, <@untainted>image)) {
+            if !(writeToImage(<byte[]> requestBinaryContent, <@untainted>imagePath)) {
                 res.statusCode = 500;
                 log:printError(ERROR_IN_WRITING);
             }
@@ -78,10 +91,9 @@ service quarantineMonitor on new http:Listener(9090) {
         }
 
         respondClient(caller, res);
-    }
 }
 
-public function respondClient(http:Caller caller, http:Response res) {
+function respondClient(http:Caller caller, http:Response res) {
     var result = caller->respond(res);
     if (result is error) {
         io:print(result);
